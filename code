@@ -1,0 +1,147 @@
+#include <WiFi.h>
+#include <ESPAsyncWebServer.h>
+#include <Adafruit_PWMServoDriver.h>
+
+// WiFi Ayarları
+const char* ssid = "YOUR_WIFI_SSID";       // WiFi adı
+const char* password = "YOUR_WIFI_PASS";   // WiFi şifren
+
+// Web Sunucusu ve Servo Sürücü
+AsyncWebServer server(80);
+Adafruit_PWMServoDriver pca9685 = Adafruit_PWMServoDriver();
+
+// Servo Yapılandırması
+struct ServoSettings {
+  uint8_t channel;
+  int minPos;
+  int maxPos;
+  int stopPos;
+  int currentPos;
+  int stepSize;
+};
+
+// Servolar
+ServoSettings servoTaban = {0, 150, 600, 330, 330, 10};  // Taban servo (kanal 0)
+ServoSettings servoOmuz = {1, 150, 600, 330, 330, 10};   // Omuz servo (kanal 1)
+ServoSettings servoDirsek = {2, 150, 600, 330, 330, 10}; // Dirsek servo (kanal 2)
+ServoSettings servoGripper = {3, 150, 600, 330, 330, 10}; // Gripper servo (kanal 3)
+
+// Web Arayüz (HTML ve CSS)
+const char* htmlPage PROGMEM = R"HTML(
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Robot Kol Kontrol</title>
+  <style>
+    body { font-family: Arial, sans-serif; text-align: center; background-color: #f8f8f8; }
+    button { padding: 10px 20px; font-size: 18px; margin: 10px; }
+    .servo-container { margin-bottom: 30px; }
+    .label { font-weight: bold; font-size: 20px; }
+  </style>
+</head>
+<body>
+  <h1>Robot Kol Web Kontrol Arayüzü</h1>
+  <div class="servo-container">
+    <div class="label">Taban</div>
+    <button onmousedown="move('taban', 'forward')" onmouseup="stop('taban')">İleri</button>
+    <button onmousedown="move('taban', 'back')" onmouseup="stop('taban')">Geri</button>
+    <p id="taban-pos">Pozisyon: 330</p>
+  </div>
+  <div class="servo-container">
+    <div class="label">Omuz</div>
+    <button onmousedown="move('omuz', 'forward')" onmouseup="stop('omuz')">İleri</button>
+    <button onmousedown="move('omuz', 'back')" onmouseup="stop('omuz')">Geri</button>
+    <p id="omuz-pos">Pozisyon: 330</p>
+  </div>
+  <div class="servo-container">
+    <div class="label">Dirsek</div>
+    <button onmousedown="move('dirsek', 'forward')" onmouseup="stop('dirsek')">İleri</button>
+    <button onmousedown="move('dirsek', 'back')" onmouseup="stop('dirsek')">Geri</button>
+    <p id="dirsek-pos">Pozisyon: 330</p>
+  </div>
+  <div class="servo-container">
+    <div class="label">Gripper</div>
+    <button onmousedown="move('gripper', 'forward')" onmouseup="stop('gripper')">Aç</button>
+    <button onmousedown="move('gripper', 'back')" onmouseup="stop('gripper')">Kapat</button>
+    <p id="gripper-pos">Pozisyon: 330</p>
+  </div>
+  <script>
+    function move(eklem, yon) {
+      fetch(`/move?joint=${eklem}&dir=${yon}`);
+    }
+    function stop(eklem) {
+      fetch(`/stop?joint=${eklem}`);
+    }
+    function updatePos(eklem, pos) {
+      document.getElementById(`${eklem}-pos`).textContent = `Pozisyon: ${pos}`;
+    }
+  </script>
+</body>
+</html>
+)HTML";
+
+void setup() {
+  Serial.begin(115200);
+
+  // PCA9685 Başlat
+  pca9685.begin();
+  pca9685.setPWMFreq(50);
+
+  // WiFi Hotspot Başlat
+  WiFi.softAP(ssid, password);
+  Serial.println("WiFi başlatıldı. IP: " + WiFi.softAPIP().toString());
+
+  // Web Sunucusu Ayarları
+  server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
+    request->send_P(200, "text/html", htmlPage);
+  });
+
+  server.on("/move", HTTP_GET, [](AsyncWebServerRequest *request){
+    String joint = request->getParam("joint")->value();
+    String dir = request->getParam("dir")->value();
+    handleMove(joint, dir);
+    request->send(200, "text/plain", "ok");
+  });
+
+  server.on("/stop", HTTP_GET, [](AsyncWebServerRequest *request){
+    String joint = request->getParam("joint")->value();
+    handleStop(joint);
+    request->send(200, "text/plain", "ok");
+  });
+
+  server.begin();
+}
+
+// Servo Hareket Fonksiyonu
+void handleMove(String joint, String dir) {
+  ServoSettings* servo = getServo(joint);
+  if (!servo) return;
+
+  if (dir == "forward" && servo->currentPos < servo->maxPos) {
+    servo->currentPos += servo->stepSize;
+  } else if (dir == "back" && servo->currentPos > servo->minPos) {
+    servo->currentPos -= servo->stepSize;
+  }
+  pca9685.setPWM(servo->channel, 0, servo->currentPos);
+}
+
+// Servo Durdurma Fonksiyonu
+void handleStop(String joint) {
+  ServoSettings* servo = getServo(joint);
+  if (!servo) return;
+
+  // (Opsiyonel: Omuz için fren gibi özellik ekleyebilirsiniz.)
+}
+
+// Servo Yapısına Erişim
+ServoSettings* getServo(String joint) {
+  if (joint == "taban") return &servoTaban;
+  if (joint == "omuz") return &servoOmuz;
+  if (joint == "dirsek") return &servoDirsek;
+  if (joint == "gripper") return &servoGripper;
+  return nullptr;
+}
+
+void loop() {
+  // Boş döngü, işlemler web üzerinden
+}
