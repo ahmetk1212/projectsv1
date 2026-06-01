@@ -33,7 +33,12 @@ def main():
 
     source = 'demo' if args.demo else 'webcam'
     cam = CameraInterface(resolution=(args.width, args.height),
-                          rotation=args.rotate, source=source)
+                          rotation=args.rotate, source=source,
+                          auto_gain=C.CAMERA_AUTO_GAIN,
+                          min_mean=C.CAMERA_MIN_MEAN,
+                          max_gain=C.CAMERA_GAIN_MAX,
+                          warmup_frames=C.CAMERA_WARMUP_FRAMES,
+                          dark_warn_threshold=C.CAMERA_DARK_WARN_THRESHOLD)
     if not args.demo and cam.source == 'demo':
         print("⚠ Webcam not found, falling back to demo mode")
     print(f"Camera: {cam.source} @ {cam.W}x{cam.H}")

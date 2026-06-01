@@ -9,6 +9,11 @@ CAMERA_RESOLUTION  = (640, 480)   # laptop-friendly default
 CAMERA_FRAMERATE   = 30
 CAMERA_ROTATION    = 0    # 0 / 90 / 180 / 270
 CAMERA_SOURCE      = 'auto'   # 'auto' | 'picamera2' | 'webcam' | 'demo'
+CAMERA_AUTO_GAIN   = True   # brighten dark frames (useful for dim webcams)
+CAMERA_MIN_MEAN    = 35.0   # target mean brightness for auto gain
+CAMERA_GAIN_MAX    = 3.0    # max gain multiplier
+CAMERA_WARMUP_FRAMES = 5    # warmup reads for auto-exposure
+CAMERA_DARK_WARN_THRESHOLD = 8.0  # warn if frames are near-black
 
 # IR LEDs — 3 × 3W, controlled via GPIO (only used on Raspberry Pi)
 LED_PINS = [17, 27, 22]   # BCM numbering (swap if your wiring is different)
@@ -43,13 +48,14 @@ MODEL_DIR            = "models"
 HUD_FPS              = 30
 HUD_WIDTH            = 640    # match camera for now
 HUD_HEIGHT           = 480
-HUD_CAMERA_FEED_ALPHA = 0.65  # how dark the camera feed is behind HUD
+HUD_CAMERA_FEED_ALPHA = 0.80  # how dark the camera feed is behind HUD
+HUD_CAMERA_COLOR_BALANCE = (1.15, 0.95, 1.20)  # (B, G, R) multipliers
 
 # Colors (BGR — matches OpenCV convention)
-HUD_COLOR_PRIMARY    = (0, 255, 255)   # cyan
-HUD_COLOR_SECONDARY  = (0, 200, 255)   # amber
-HUD_COLOR_ALERT      = (0, 80, 255)    # red-orange
-HUD_COLOR_DETECTION  = (0, 255, 0)     # green for detected objects
+HUD_COLOR_PRIMARY    = (255, 60, 60)   # blue-magenta
+HUD_COLOR_SECONDARY  = (180, 50, 255)  # red-violet
+HUD_COLOR_ALERT      = (0, 0, 255)     # red
+HUD_COLOR_DETECTION  = (255, 40, 120)  # blue-red for detected objects
 
 # HUD corner elements
 HUD_SHOW_CROSSHAIR   = True

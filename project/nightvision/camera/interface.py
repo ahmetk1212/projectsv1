@@ -22,16 +22,29 @@ class CameraInterface:
 
     def __init__(self, resolution: tuple = (640, 480),
                  framerate: int = 30, rotation: int = 0,
-                 source: str = 'auto'):
+                 source: str = 'auto',
+                 auto_gain: bool = True,
+                 min_mean: float = 35.0,
+                 max_gain: float = 3.0,
+                 warmup_frames: int = 0,
+                 dark_warn_threshold: float = 8.0):
         self.W, self.H = resolution
         self.framerate = framerate
         self.rotation = rotation
         self.source = source
+        self.auto_gain = auto_gain
+        self.min_mean = float(min_mean)
+        self.max_gain = float(max_gain)
+        self.warmup_frames = max(0, int(warmup_frames))
+        self.dark_warn_threshold = float(dark_warn_threshold)
         self._camera = None
         self._demo_frame = 0
         self._is_open = False
         self._frame_count = 0
         self._last_frame = None
+        self._last_mean = None
+        self._dark_warned = False
+        self._auto_gain_logged = False
 
         # Precompute vignette once
         self._vignette = self._make_vignette(self.W, self.H)
@@ -83,6 +96,12 @@ class CameraInterface:
         if not ok or test_frame is None:
             cap.release()
             raise RuntimeError(f"Webcam index {index} returned no frames")
+        if self.warmup_frames:
+            for _ in range(self.warmup_frames):
+                ok, warm = cap.read()
+                if ok and warm is not None:
+                    test_frame = warm
+
         # Use actual returned size if different
         actual_h, actual_w = test_frame.shape[:2]
         if (actual_w, actual_h) != (self.W, self.H):
@@ -93,6 +112,13 @@ class CameraInterface:
         self._camera = cap
         self.source = 'webcam'
         self._is_open = True
+        mean = self._frame_mean(test_frame)
+        if mean is not None and mean < self.dark_warn_threshold:
+            logger.warning(
+                "Webcam frames are very dark. Check lens cover, permissions, or try "
+                "--webcam with a different index."
+            )
+            self._dark_warned = True
         logger.info(f"Camera: webcam (index={index}, {self.W}x{self.H})")
 
     def _open_demo(self):
@@ -135,8 +161,39 @@ class CameraInterface:
             elif self.rotation == 270:
                 frame = cv2.rotate(frame, cv2.ROTATE_90_COUNTERCLOCKWISE)
 
+        frame = self._apply_auto_gain(frame)
+
         self._frame_count += 1
         self._last_frame = frame
+        return frame
+
+    def _frame_mean(self, frame: np.ndarray) -> Optional[float]:
+        if frame is None:
+            return None
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        return float(np.mean(gray))
+
+    def _apply_auto_gain(self, frame: np.ndarray) -> np.ndarray:
+        mean = self._frame_mean(frame)
+        if mean is None:
+            return frame
+        self._last_mean = mean
+
+        if mean < self.dark_warn_threshold and not self._dark_warned:
+            logger.warning(
+                "Camera frame is near-black. If you still see black output, "
+                "try another camera index or check OS camera permissions."
+            )
+            self._dark_warned = True
+
+        if self.auto_gain and mean < self.min_mean:
+            gain = min(self.max_gain, self.min_mean / max(mean, 1e-6))
+            if gain > 1.05:
+                frame = cv2.convertScaleAbs(frame, alpha=gain, beta=0)
+                if not self._auto_gain_logged:
+                    logger.info(f"Auto-gain enabled (x{gain:.2f}) to lift dark frames")
+                    self._auto_gain_logged = True
+
         return frame
 
     def _make_vignette(self, w: int, h: int) -> np.ndarray:

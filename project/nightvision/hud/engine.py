@@ -131,14 +131,21 @@ class HUDEngine:
         alpha = self.cfg.get('HUD_CAMERA_FEED_ALPHA', 0.65)
         if alpha < 1.0:
             frame = cv2.convertScaleAbs(frame, alpha=alpha, beta=0)
+        balance = self.cfg.get('HUD_CAMERA_COLOR_BALANCE')
+        if balance:
+            b, g, r = balance
+            frame = np.clip(frame.astype(np.float32) * (b, g, r), 0, 255).astype(np.uint8)
         return frame
 
     def _draw_scan_line(self, canvas, elapsed):
         speed = self.cfg.get('HUD_SCAN_LINE_SPEED', 2.0)
         line_y = int((elapsed * speed * self.H) % self.H)
-        cv2.line(canvas, (0, line_y), (self.W, line_y), (60, 200, 60), 1)
+        c = self.cfg.get('HUD_COLOR_PRIMARY', (0, 255, 255))
+        c2 = self.cfg.get('HUD_COLOR_SECONDARY', (0, 200, 255))
+        dim = tuple(max(0, int(v * 0.4)) for v in c2)
+        cv2.line(canvas, (0, line_y), (self.W, line_y), c, 1)
         if line_y > 3:
-            cv2.line(canvas, (0, line_y - 3), (self.W, line_y - 3), (30, 100, 30), 1)
+            cv2.line(canvas, (0, line_y - 3), (self.W, line_y - 3), dim, 1)
 
     def _draw_crosshair(self, canvas, pulse, deg):
         cx, cy = self.W // 2, self.H // 2

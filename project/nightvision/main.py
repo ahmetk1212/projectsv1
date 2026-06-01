@@ -82,6 +82,11 @@ class NightVisionSystem:
             framerate=C.CAMERA_FRAMERATE,
             rotation=args.rotate,
             source=source,
+            auto_gain=C.CAMERA_AUTO_GAIN,
+            min_mean=C.CAMERA_MIN_MEAN,
+            max_gain=C.CAMERA_GAIN_MAX,
+            warmup_frames=C.CAMERA_WARMUP_FRAMES,
+            dark_warn_threshold=C.CAMERA_DARK_WARN_THRESHOLD,
         )
         # Update HUD to match actual resolution
         C.HUD_WIDTH = self.camera.W
